@@ -1,0 +1,3 @@
+number=3
+pathsafe=/home/henrique/myfiles/projetos/pymusic/download
+date=20240229
