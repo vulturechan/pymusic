@@ -1,61 +1,53 @@
-from datetime import datetime
-from pytube.cli import on_progress
-from pytube import YouTube, streams
+import unittest
+from unittest.mock import patch, MagicMock
+from your_module import Conversor
 
-class Conversor():
-    def __init__(self):
-        self._urls = []
-        self._number = int
-        self._pathsafe = str
-        self._datetime = datetime.now().strftime("%Y%m%d")
-        self._config = r"/home/henrique/myfiles/projetos/pymusic/config.txt"
+class TestConversor(unittest.TestCase):
 
-    
-    def load_config(self):
-        with open(self._config, "r") as file:
-            for line in file.readlines():
-                if "number=" in line:
-                    self._number = int(line.split("=")[1].strip())
-                elif "pathsafe=" in line:
-                    self._pathsafe = line.split("=")[1].strip()
-                elif "date=" in line:
-                    if int(self._datetime) > int(line.split("=")[1]):
-                        self._number = 0
+    @patch('builtins.open', new_callable=unittest.mock.mock_open, read_data='number=0\npathsafe=/mock/path\n')
+    def test_load_config(self, mock_open):
+        con = Conversor()
+        con.load_config()
+        
+        self.assertEqual(con._number, 0)
+        self.assertEqual(con._pathsafe, "/mock/path")
 
-    def write_config(self):
-        with open(self._config, "w") as file:
-            file.write(f"number={self._number}\n")
-            file.write(f"pathsafe={self._pathsafe}\n")
-            file.write(f"date={self._datetime}\n")
+    @patch('builtins.open', new_callable=unittest.mock.mock_open, read_data='http://example.com/video1\nhttp://example.com/video2\n')
+    def test_load_urls(self, mock_open):
+        con = Conversor()
+        con.load_urls("/mock/path/to/urls.txt")
+        
+        self.assertEqual(len(con._urls), 2)
+        self.assertEqual(con._urls[0], 'http://example.com/video1')
+        self.assertEqual(con._urls[1], 'http://example.com/video2')
 
+    @patch('pytube.YouTube')
+    def test_conversorMP3(self, mock_YouTube):
+        con = Conversor()
+        con._pathsafe = "/mock/path"
+        con._urls = ['http://example.com/video1']
+        mock_video = MagicMock()
+        mock_streams = MagicMock()
+        mock_audio_stream = MagicMock()
+        mock_YouTube.return_value = mock_video
+        mock_video.streams.filter.return_value.last.return_value = mock_audio_stream
+        mock_audio_stream.download.return_value = None
+        con.conversorMP3()
+        mock_audio_stream.download.assert_called_once()
+        
+    @patch('pytube.YouTube')
+    def test_conversorMP4(self, mock_YouTube):
+        con = Conversor()
+        con._pathsafe = "/mock/path"
+        con._urls = ['http://example.com/video1']
+        mock_video = MagicMock()
+        mock_streams = MagicMock()
+        mock_YouTube.return_value = mock_video
+        mock_video.streams.last.return_value = MagicMock()
+        mock_video.streams.last.return_value.download.return_value = None
+        con.conversorMP4()
+        mock_video.streams.last.return_value.download.assert_called_once()
 
-    def load_urls(self, path):
-        with open(path, "r") as file:
-            for line in file.readlines():
-                self._urls.append(line)
+if __name__ == '__main__':
+    unittest.main()
 
-
-    def conversor(self):
-        for url in self._urls:
-            try:
-                self._number += 1
-                yt = YouTube(url,
-                             on_progress_callback = on_progress)
-
-                aud = yt.streams.get_highest_resolution()
-                aud = yt.streams.get_audio_only()
-                name = f"AUD-{self._datetime}WA000000"
-                name = name[:-len(str(self._number))]
-                name = name + str(self._number) + ".mp3"
-                aud.donwload(filename=name, output_path=self._pathsafe)
-            except Exception as e:
-                self._number -= 1
-                continue
-
-if __name__ == "__main__":
-    con = Conversor()
-    con.load_config()
-    con.load_urls("/home/henrique/myfiles/projetos/pymusic/linkx.txt")
-    print(con._urls)
-    con.conversor()
-    con.write_config()
